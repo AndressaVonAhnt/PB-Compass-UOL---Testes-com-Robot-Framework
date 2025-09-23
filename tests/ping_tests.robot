@@ -1,6 +1,8 @@
 *** Settings ***
-Resource  ../resources/ping.resource
+Resource    ../resources/ping.resource
 
 *** Test Cases ***
-Cenário 01: Verificar se a API está funcionando
-    Verificar o funcionamento da API
+Should Return API Health Status
+    [Documentation]    Validates that API health endpoint returns expected status
+    ${response}=    Get API Health Status
+    Validate Health Response    ${response}

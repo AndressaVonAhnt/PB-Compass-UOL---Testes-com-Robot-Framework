@@ -1,156 +1,118 @@
 *** Settings ***
-Resource  ../resources/common.robot
-Library    Collections
-Library    String
+Resource    common.robot
+
+*** Variables ***
+${BOOKING_ENDPOINT}    /booking
 
 *** Keywords ***
-Buscar por um ID de uma reserva
-    [Documentation]    Cria uma sessão e verifica se encontrou o ID da reserva
-    [Arguments]        ${id}
-    Criar Sessão na Restful Booker 
-
-    ${response}  GET On Session    RestfulBooker    /booking/${id} 
-    RETURN     ${response}
-
-Verificar se o retorno está correto
-    [Documentation]    Verifica se o retorno é valido
-    [Arguments]        ${response}
-    Should Be Equal As Strings    ${response.status_code}    200
-    Dictionary Should Contain Key    ${response.json()}    firstname
-    Dictionary Should Contain Key    ${response.json()}    lastname
-    Dictionary Should Contain Key    ${response.json()}    totalprice
-    Dictionary Should Contain Key    ${response.json()}    depositpaid
-    Dictionary Should Contain Key    ${response.json()}    bookingdates
-    Dictionary Should Contain Key    ${response.json()}[bookingdates]    checkin
-    Dictionary Should Contain Key    ${response.json()}[bookingdates]    checkout
-
-Buscar por IDs 
-    [Documentation]    Verifica se o retorno é valido
-    [Arguments]        ${firstname}    ${lastname}    ${checkin}    ${checkout}
+Get Booking By ID
+    [Documentation]    Retrieves booking details by ID
+    [Arguments]    ${booking_id}
     
-    Criar Sessão na Restful Booker 
+    Create API Session
+    ${response}=    GET On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}/${booking_id}
+    RETURN    ${response}
+
+Get All Bookings
+    [Documentation]    Retrieves all booking IDs with optional filters
+    [Arguments]    ${firstname}=${EMPTY}    ${lastname}=${EMPTY}    ${checkin}=${EMPTY}    ${checkout}=${EMPTY}
     
-    &{params}=    Create Dictionary
+    Create API Session
+    ${params}=    Build Filter Parameters    ${firstname}    ${lastname}    ${checkin}    ${checkout}
+    ${response}=  GET On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}    params=${params}
+    RETURN    ${response}
+
+Create New Booking
+    [Documentation]    Creates a new booking
+    [Arguments]    ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
+    
+    Create API Session
+    ${headers}=    Create Standard Headers
+    ${body}=       Build Booking Body    ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
+    ${response}=   POST On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}    headers=${headers}    json=${body}
+    RETURN    ${response}
+
+Update Booking
+    [Documentation]    Updates existing booking
+    [Arguments]    ${booking_id}    ${token}    ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
+    
+    Create API Session
+    ${headers}=    Create Auth Headers    ${token}
+    ${body}=       Build Booking Body    ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
+    ${response}=   PUT On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}/${booking_id}    headers=${headers}    json=${body}
+    RETURN    ${response}
+
+Patch Booking Field
+    [Documentation]    Updates specific booking fields using PATCH
+    [Arguments]    ${booking_id}    ${token}    &{field_updates}
+    
+    Create API Session
+    ${headers}=    Create Auth Headers    ${token}
+    ${response}=   PATCH On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}/${booking_id}    headers=${headers}    json=${field_updates}
+    RETURN    ${response}
+
+Delete Booking
+    [Documentation]    Deletes booking by ID
+    [Arguments]    ${booking_id}    ${token}
+    
+    Create API Session
+    ${headers}=    Create Auth Headers    ${token}
+    ${response}=   DELETE On Session    ${SESSION_ALIAS}    ${BOOKING_ENDPOINT}/${booking_id}    headers=${headers}
+    RETURN    ${response}
+
+Build Booking Body
+    [Documentation]    Builds booking request body
+    [Arguments]    ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
+    
+    ${booking_dates}=    Create Dictionary    checkin=${checkin}    checkout=${checkout}
+    ${body}=    Create Dictionary
+    ...         firstname=${firstname}
+    ...         lastname=${lastname}
+    ...         totalprice=${totalprice}
+    ...         depositpaid=${depositpaid}
+    ...         bookingdates=${booking_dates}
+    ...         additionalneeds=${additionalneeds}
+    RETURN    ${body}
+
+Build Filter Parameters
+    [Documentation]    Builds filter parameters removing empty values
+    [Arguments]    ${firstname}    ${lastname}    ${checkin}    ${checkout}
+    
+    ${params}=    Create Dictionary
     Run Keyword If    '${firstname}' != '${EMPTY}'    Set To Dictionary    ${params}    firstname=${firstname}
-    Run Keyword If    '${lastname}' != '${EMPTY}'    Set To Dictionary    ${params}    lastname=${lastname}
-    Run Keyword If    '${checkin}' != '${EMPTY}'    Set To Dictionary    ${params}    checkin=${checkin}
-    Run Keyword If    '${checkout}' != '${EMPTY}'    Set To Dictionary    ${params}    checkout=${checkout}
+    Run Keyword If    '${lastname}' != '${EMPTY}'     Set To Dictionary    ${params}    lastname=${lastname}
+    Run Keyword If    '${checkin}' != '${EMPTY}'      Set To Dictionary    ${params}    checkin=${checkin}
+    Run Keyword If    '${checkout}' != '${EMPTY}'     Set To Dictionary    ${params}    checkout=${checkout}
+    RETURN    ${params}
 
-    ${response}=    GET On Session    alias=RestfulBooker    url=/booking    params=${params}
+Validate Booking Response
+    [Documentation]    Validates booking response structure
+    [Arguments]    ${response}
     
-    RETURN          ${response}
+    Validate Status Code    ${response}    ${STATUS_OK}
+    ${required_fields}=    Create List    firstname    lastname    totalprice    depositpaid    bookingdates
+    Validate Required Fields    ${response.json()}    @{required_fields}
+    ${date_fields}=    Create List    checkin    checkout
+    Validate Required Fields    ${response.json()}[bookingdates]    @{date_fields}
 
-Criar reserva
-    [Documentation]    Cria uma nova reserva na API.
-    [Arguments]      ${firstname}    ${lastname}    ${totalprice}    ${depositpaid}    ${checkin}    ${checkout}    ${additionalneeds}
-
-    Criar Sessão na Restful Booker 
-
-    ${bookingdates}=    Create Dictionary     
-    ...                checkin=${checkin}    
-    ...                checkout=${checkout}
+Validate Booking Creation
+    [Documentation]    Validates successful booking creation
+    [Arguments]    ${response}
     
-    ${body}=  Create Dictionary  
-    ...      firstname=${firstname}   
-    ...      lastname=${lastname}    
-    ...      totalprice=${totalprice}    
-    ...      depositpaid=${depositpaid}    
-    ...      bookingdates=${bookingdates}
-    ...      additionalneeds=${additionalneeds}
+    Validate Status Code    ${response}    ${STATUS_OK}
+    ${creation_fields}=    Create List    bookingid    booking
+    Validate Required Fields    ${response.json()}    @{creation_fields}
     
-    ${headers}=  Create Dictionary  
-    ...         Content-Type=application/json
-    ...         Accept=application/json
-    
-    ${response}  POST On Session  
-    ...          alias=RestfulBooker
-    ...          url=/booking
-    ...          headers=${headers}
-    ...          json=${body}
-
-    RETURN     ${response}
-
-Verificar se a reserva foi criada com sucesso
-    [Documentation]    Verifica se a reserva foi criada com sucesso.
-    [Arguments]        ${response}
-    
-    Should Be Equal As Strings    ${response.status_code}    200
-    Dictionary Should Contain Key    ${response.json()}    bookingid
-    Dictionary Should Contain Key    ${response.json()}    booking
-
     ${booking_details}=    Get From Dictionary    ${response.json()}    booking
+    ${booking_fields}=     Create List    firstname    lastname    totalprice    depositpaid    bookingdates    additionalneeds
+    Validate Required Fields    ${booking_details}    @{booking_fields}
+
+Validate Booking Update
+    [Documentation]    Validates booking update response
+    [Arguments]    ${response}    &{expected_values}
     
-    Dictionary Should Contain Key    ${booking_details}    firstname
-    Dictionary Should Contain Key    ${booking_details}    lastname
-    Dictionary Should Contain Key    ${booking_details}    totalprice
-    Dictionary Should Contain Key    ${booking_details}    depositpaid
-    Dictionary Should Contain Key    ${booking_details}    bookingdates
-    Dictionary Should Contain Key    ${booking_details}    additionalneeds
-
-
-Atualizar nome 
-    [Documentation]    Atualiza uma reserva existente.
-    [Arguments]    ${booking_id}    ${token}    ${new_name}    ${booking_details}
-
-    &{headers}=    Create Dictionary
-    ...            Content-Type=application/json
-    ...            Accept=application/json
-    ...            Cookie=token=${token}
-
-    &{body}=    Create Dictionary   
-    ...         firstname=${new_name}
-    ...         lastname=${booking_details}[lastname]
-    ...         totalprice=${booking_details}[totalprice]
-    ...         depositpaid=${booking_details}[depositpaid]
-    ...         bookingdates=${booking_details}[bookingdates]
-    ...         additionalneeds=${booking_details}[additionalneeds]
-
-    ${response}=    PUT On Session
-    ...             alias=RestfulBooker
-    ...             url=/booking/${booking_id}
-    ...             headers=${headers}
-    ...             json=${body}
-    
-    RETURN     ${response}
-
-Validar resposta ATUALIZACAO
-    [Documentation]    Verifica se o retorno da atualização de uma reserva está válido.
-    [Arguments]    ${response_put} 
-    Should Be Equal As Strings    ${response_put.status_code}    200
-    Dictionary Should Contain Key    ${response_put.json()}    firstname
-    Should Be Equal As Strings    ${response_put.json()}[firstname]    Julia
-
-Atualizar Nome com PATCH
-    [Documentation]    Atualiza o nome de uma reserva usando PATCH.
-    [Arguments]      ${booking_id}    ${token}    ${new_name}
-
-    &{headers}=    Create Dictionary
-    ...            Content-Type=application/json
-    ...            Accept=application/json
-    ...            Cookie=token=${token}
-
-    &{body}=       Create Dictionary
-    ...            firstname=${new_name}
-
-    ${response}=   PATCH On Session
-    ...            alias=RestfulBooker
-    ...            url=/booking/${booking_id}
-    ...            headers=${headers}
-    ...            json=${body}
-
-    RETURN         ${response}
-
-Deletar Reserva
-    [Documentation]    Deleta uma reserva existente.
-    [Arguments]      ${booking_id}    ${token}
-
-    &{headers}=    Create Dictionary
-    ...            Content-Type=application/json
-    ...            Cookie=token=${token}
-    
-    ${response}=   DELETE On Session
-    ...            alias=RestfulBooker
-    ...            url=/booking/${booking_id}
-    ...            headers=${headers}
-
-    RETURN         ${response}
+    Validate Status Code    ${response}    ${STATUS_OK}
+    FOR    ${field}    ${expected_value}    IN    &{expected_values}
+        Dictionary Should Contain Key    ${response.json()}    ${field}
+        Should Be Equal As Strings    ${response.json()}[${field}]    ${expected_value}
+    END

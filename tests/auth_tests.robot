@@ -1,7 +1,14 @@
 *** Settings ***
-Resource  ../resources/auth.resource
+Resource    ../resources/auth.resource
 
 *** Test Cases ***
-Cenário 01: Criar token para autenticação
-    ${response}=  Criar Sessao e Pegar Token    admin    password123
-    Verificar se o token é válido   ${response}
+Should Create Valid Authentication Token
+    [Documentation]    Validates successful token creation with valid credentials
+    ${response}=    Create Authentication Token    admin    password123
+    Validate Token Response    ${response}
+
+Should Reject Invalid Credentials
+    [Documentation]    Validates that API rejects invalid credentials
+    ${response}=    Create Authentication Token    invalid    wrong
+    Validate Status Code    ${response}    ${STATUS_OK}
+    Dictionary Should Contain Key    ${response.json()}    reason

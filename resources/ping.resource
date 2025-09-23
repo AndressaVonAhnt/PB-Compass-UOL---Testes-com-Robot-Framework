@@ -1,11 +1,19 @@
 *** Settings ***
-Library    Collections
-Resource  ../resources/common.robot
+Resource    common.robot
+
+*** Variables ***
+${PING_ENDPOINT}    /ping
 
 *** Keywords ***
-Verificar o funcionamento da API
-    [Documentation]    Verifica se a API está funcionando corretamente
-    Criar Sessão na Restful Booker 
+Get API Health Status
+    [Documentation]    Checks API health status
+    
+    Create API Session
+    ${response}=    GET On Session    ${SESSION_ALIAS}    ${PING_ENDPOINT}
+    RETURN    ${response}
 
-    ${response}  GET On Session    RestfulBooker    /ping    
-    Should Be Equal As Strings    ${response.status_code}    201
+Validate Health Response
+    [Documentation]    Validates API health response
+    [Arguments]    ${response}
+    
+    Validate Status Code    ${response}    ${STATUS_CREATED}

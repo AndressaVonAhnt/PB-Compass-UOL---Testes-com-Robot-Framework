@@ -1,65 +1,65 @@
 *** Settings ***
-Resource  ../resources/booking.resource
-Resource  ../resources/auth.resource
+Resource    ../resources/booking.resource
+Resource    ../resources/auth.resource
+Suite Setup    Initialize Test Suite
 
+*** Variables ***
+${SUITE_TOKEN}    ${EMPTY}
 
 *** Test Cases ***
-Cenário 01: Retornar detalhes de uma reserva com base no ID
-    ${response_post}=    Criar reserva    John    Doe    150    ${True}    2026-01-01    2026-01-05    Brunch
-    ${booking_id}=       Get From Dictionary    ${response_post.json()}    bookingid
-    
-    ${response_get}=    Buscar por um ID de uma reserva    id=${booking_id}
-    
-    Verificar se o retorno está correto    ${response_get}
+Should Return Booking Details By ID
+    [Documentation]    Creates booking and retrieves details by ID
+    ${booking_id}=    Create Test Booking
+    ${response}=      Get Booking By ID    ${booking_id}
+    Validate Booking Response    ${response}
 
-Cenário 02: Retornar todos os IDs da API sem filtro
-    ${response}=    Buscar por IDs    ${EMPTY}    ${EMPTY}    ${EMPTY}    ${EMPTY}
-    Should Be Equal As Strings    ${response.status_code}    200
+Should Return All Booking IDs Without Filter
+    [Documentation]    Retrieves all booking IDs without any filters
+    ${response}=    Get All Bookings
+    Validate Status Code    ${response}    ${STATUS_OK}
 
-Cenário 03: Retornar IDs por nome de usuário
-    ${response}=    Buscar por IDs    sally    brown    ${EMPTY}    ${EMPTY}
-    Should Be Equal As Strings    ${response.status_code}    200
+Should Filter Bookings By Guest Name
+    [Documentation]    Filters bookings by guest name
+    ${response}=    Get All Bookings    firstname=sally    lastname=brown
+    Validate Status Code    ${response}    ${STATUS_OK}
 
-Cenário 04: Retornar IDs por datas de check-in e check-out
-    ${response}=    Buscar por IDs    ${EMPTY}    ${EMPTY}    2025-01-01    2025-01-05
-    Should Be Equal As Strings    ${response.status_code}    200
+Should Filter Bookings By Date Range
+    [Documentation]    Filters bookings by check-in and check-out dates
+    ${response}=    Get All Bookings    checkin=2025-01-01    checkout=2025-01-05
+    Validate Status Code    ${response}    ${STATUS_OK}
 
-Cenário 05: Criando reserva
-    ${response}=  Criar reserva    Andressa    Von Ahnt    200    ${True}    2025-01-01    2025-01-10    Lunch
-    Verificar se a reserva foi criada com sucesso   ${response}
+Should Create New Booking Successfully
+    [Documentation]    Creates new booking and validates response
+    ${response}=    Create New Booking    Andressa    Von Ahnt    200    ${True}    2025-01-01    2025-01-10    Lunch
+    Validate Booking Creation    ${response}
 
-Cenário 06: Atualizar o nome de uma reserva
-    ${response_token}=    Criar Sessao e Pegar Token    admin    password123
-    ${token}=             Get From Dictionary    ${response_token.json()}    token
-    
-    ${response_post}=    Criar reserva    Sally    Brown    200    ${True}    2025-01-01    2025-01-10    Lunch
-    ${booking_id}=       Get From Dictionary    ${response_post.json()}    bookingid
-    
-    ${response_get}=    Buscar por um ID de uma reserva    id=${booking_id}
-    ${booking_details}=    Set Variable    ${response_get.json()}
-    
-    ${response_put}=    Atualizar nome    ${booking_id}    ${token}    Julia    ${booking_details}
-    
-    Validar resposta ATUALIZACAO    ${response_put}
+Should Update Booking With PUT
+    [Documentation]    Updates booking using PUT method
+    ${booking_id}=    Create Test Booking
+    ${response}=      Update Booking    ${booking_id}    ${SUITE_TOKEN}    Julia    Brown    200    ${True}    2025-01-01    2025-01-10    Lunch
+    Validate Booking Update    ${response}    firstname=Julia
 
-Cenário 07: Atualizar o nome de uma reserva com PATCH
-    ${response_token}=    Criar Sessao e Pegar Token    admin    password123
-    ${token}=             Get From Dictionary    ${response_token.json()}    token
-    
-    ${response_post}=    Criar reserva    Sally    Brown    200    ${True}    2025-01-01    2025-01-10    Lunch
-    ${booking_id}=       Get From Dictionary    ${response_post.json()}    bookingid
+Should Update Booking With PATCH
+    [Documentation]    Updates booking using PATCH method
+    ${booking_id}=    Create Test Booking
+    ${response}=      Patch Booking Field    ${booking_id}    ${SUITE_TOKEN}    firstname=Julia
+    Validate Booking Update    ${response}    firstname=Julia
 
-    ${response_patch}=   Atualizar Nome com PATCH    ${booking_id}    ${token}    Julia
-    
-    Validar resposta ATUALIZACAO    ${response_patch}
+Should Delete Booking Successfully
+    [Documentation]    Deletes booking and validates response
+    ${booking_id}=    Create Test Booking
+    ${response}=      Delete Booking    ${booking_id}    ${SUITE_TOKEN}
+    Validate Status Code    ${response}    ${STATUS_CREATED}
 
-Cenário 08: Deletar uma reserva
-    ${response_token}=    Criar Sessao e Pegar Token    admin    password123
-    ${token}=             Get From Dictionary    ${response_token.json()}    token
+*** Keywords ***
+Initialize Test Suite
+    [Documentation]    Creates authentication token for test suite
+    ${response}=    Create Authentication Token    admin    password123
+    ${token}=       Get From Dictionary    ${response.json()}    token
+    Set Suite Variable    ${SUITE_TOKEN}    ${token}
 
-    ${response_post}=    Criar reserva    Sally    Brown    200    ${True}    2025-01-01    2025-01-10    Lunch
-    ${booking_id}=       Get From Dictionary    ${response_post.json()}    bookingid
-
-    ${response}=     Deletar Reserva    ${booking_id}    ${token}
-    
-    Should Be Equal As Strings    ${response.status_code}    201
+Create Test Booking
+    [Documentation]    Creates a test booking and returns booking ID
+    ${response}=    Create New Booking    Sally    Brown    200    ${True}    2025-01-01    2025-01-10    Lunch
+    ${booking_id}=  Get From Dictionary    ${response.json()}    bookingid
+    RETURN    ${booking_id}
